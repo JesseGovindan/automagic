@@ -1,0 +1,20 @@
+{
+  "name": "automagic",
+  "version": "0.0.0",
+  "description": "A daemon application that performs automated tasks",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node ./src/main.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@mattermost/client": "^10.9.0",
+    "axios": "^1.11.0"
+  }
+}
