@@ -4,7 +4,6 @@ import {
 } from './use_cases'
 import { addScheduledTask } from '../../utilities/TaskScheduler'
 import { runScheduledMessagesTask } from './scheduler'
-import { createLogger } from '../../utilities/Logger'
 import { Database, DatabaseError } from '../../database'
 import { useRequestHandler } from '../../utilities/RequestHandler'
 
@@ -15,10 +14,7 @@ export function bootstrapScheduledMessagesModule(server: Application, database: 
   registerScheduledMessagesEndpoints(server, database)
   addScheduledTask({
     getNextDate: () => Date.now() + 60 * 1000, // every minute
-    task: () => runScheduledMessagesTask(database).match(
-      () => {},
-      error => { throw new Error(`Failed to run scheduled messages task: ${error}`) },
-    ),
+    task: () => runScheduledMessagesTask(database),
     taskName: 'ScheduledMessages',
     runImmediately: true,
   })
@@ -36,8 +32,7 @@ function registerScheduledMessagesEndpoints(app: Application, database: Database
 
       return { status: 400, body: { error: error } }
     }
-  ))
-  )
+  )))
 
   app.get('/recipients', useRequestHandler((req) => useCases.listRecipients(req.query.name as string).match(
     recipients => OK(recipients),

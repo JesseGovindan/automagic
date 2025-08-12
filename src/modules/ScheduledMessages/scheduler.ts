@@ -3,7 +3,7 @@ import { ResultAsync, okAsync } from 'neverthrow';
 import { createLogger } from '../../utilities/Logger';
 import { notify } from '../../utilities/Notification';
 import { Database } from '../../database';
-import { combineSequentially, conditionalResult, conditionalResultAsync } from '../../utilities/functional';
+import { combineSequentially, conditionalResultAsync } from '../../utilities/functional';
 import { ScheduledMessage } from '../../types';
 
 const log = createLogger('Scheduler');
@@ -12,6 +12,7 @@ export function runScheduledMessagesTask(database: Database) {
   return database.scheduledMessages.findAll()
     .andTee(messages => log(`Running scheduled messages task for ${messages.length} messages`))
     .andThen(messages => combineSequentially(messages.map(msg => () => processScheduledMessage(msg, database))))
+    .map(() => log('All scheduled messages sent successfully'))
 }
 
 function processScheduledMessage(msg: ScheduledMessage, db: Database) {

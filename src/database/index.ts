@@ -36,6 +36,7 @@ export type Database = {
   },
   mattermost: {
     getConfig: () => ResultAsync<MattermostConfig, DatabaseError | 'MattermostConfigNotFound'>
+    saveConfig: (config: MattermostConfig) => ResultAsync<void, DatabaseError>
     getTimeOfLastGoodMorningMessage: () => ResultAsync<number | undefined, DatabaseError | 'NoLastGoodMorningMessageTimeFound'>
     setTimeOfLastGoodMorningMessage: (time: number) => ResultAsync<void, DatabaseError>
   }

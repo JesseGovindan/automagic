@@ -24,6 +24,7 @@
     "lodash": "^4.17.21",
     "mudslide": "^0.31.6",
     "neverthrow": "^8.2.0",
+    "read": "^4.1.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   }

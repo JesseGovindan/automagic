@@ -2,12 +2,18 @@ import { inspect } from 'util'
 
 import { sleepUntil } from '../utilities/Delay'
 import { createLogger } from '../utilities/Logger'
+import { ResultAsync } from 'neverthrow'
+import _ from 'lodash'
 
 const log = createLogger('scheduler')
 
+export type TaskOutput = {
+  stopRunning?: boolean
+} | void
+
 export function addScheduledTask(taskDetails: {
   getNextDate: () => number,
-  task: () => Promise<void>,
+  task: () => ResultAsync<TaskOutput, Error>,
   taskName: string,
   runImmediately?: boolean,
 }) {
@@ -18,10 +24,14 @@ export function addScheduledTask(taskDetails: {
     if (!taskDetails.runImmediately) {
       await sleepUntil(getNextDate())
     }
-    const taskState = await runTask(task, taskName)
-    notifyOnError(taskName, taskState)
 
-    setTimeout(() => addScheduledTask({ ...taskDetails, runImmediately: false }), 1)
+    const continueSchedule = await task()
+      .orTee(error => log(`Task ${taskName} failed. Error: ${inspect(error)}`))
+      .match(result => _.get(result, 'stopRunning', true), () => false)
+
+    if (continueSchedule) {
+      setTimeout(() => addScheduledTask({ ...taskDetails, runImmediately: false }), 1)
+    }
   }).catch(error => log(`Error in task ${taskName}: ${error}`))
 }
 

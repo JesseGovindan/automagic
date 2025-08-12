@@ -11,6 +11,6 @@ export async function startDaemon() {
   const database = await initialiseDatabase()
   const server = await startHttpServer();
 
-  bootstrapMattermostModule(database);
+  bootstrapMattermostModule(server, database);
   bootstrapScheduledMessagesModule(server, database);
 }

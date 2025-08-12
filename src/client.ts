@@ -1,7 +1,9 @@
 import axios from "axios"
-import { conditionalResult, errorIf, expectDefined, merge, mergeAsync, parseNumber, pick } from "./utilities/functional"
-import { ok, errAsync, fromPromise, okAsync } from "neverthrow"
+import { combineSequentially, conditionalResult, errorIf, expectDefined, merge, mergeAsync, onlyIfAsync, parseNumber, pick } from "./utilities/functional"
+import { ok, errAsync, fromPromise, okAsync, ResultAsync, fromSafePromise } from "neverthrow"
 import { Recipient, ScheduledMessage } from "./types"
+import { Channel, getMattermostChannels, login } from "./modules/Mattermost/MattermostClient"
+import { read } from 'read'
 
 export function scheduleMessage(
     recipientName: string | undefined,
@@ -160,6 +162,76 @@ export function addRecipient(name: string | undefined, phoneNumber: string | und
             console.error(`Failed to add recipient: ${error}`)
         }
     )
+}
+
+export function configureMattermost() {
+  return combineSequentially([
+    () => prompt('Mattermost server url:'),
+    () => prompt('Email:'),
+    () => prompt('Password:', { secret: true }),
+  ])
+  .andThen(([url, email, password]) =>
+    login({ url, username: email, password })
+      .andThen(([client, userId]) => getMattermostChannels(client, userId)
+        .andTee(displayChannels)
+        .andThen(channels => retryUntilOk(() => pickAChannel(channels)))
+      )
+      .map(channelName => ({ url, username: email, password, channelName }))
+  )
+
+  .andThen(config => makeRequest({
+    method: 'post',
+    url: '/mattermost-config',
+    data: config,
+  }))
+  .andTee(() => console.log('Mattermost config saved!'))
+
+  .andThen(() => retryUntilOk(() => yesOrNoPrompt('Send good morning message now? (yes/no): ')))
+  .andThen(choice => onlyIfAsync(choice === 'yes', () => makeRequest({
+    method: 'post',
+    url: '/mattermost-send-morning-message',
+  })))
+  .andTee(() => console.log('Good morning message sent!'))
+
+  .match(
+    () => {},
+    (error) => console.error('Unable to save matter most config. ' + error),
+  )
+}
+
+function pickAChannel(channels: Channel[]) {
+  return prompt('Choose channel:')
+  .andThen(choice => parseNumber(choice, 'Input must be a number'))
+  .map(channelIndex => channels[channelIndex - 1])
+  .andThen(expectDefined('Please select a valid channel'))
+  .map(pick("name"))
+}
+
+function yesOrNoPrompt(message: string) {
+  return prompt(message)
+    .andThrough(choice => errorIf(!['yes', 'no'].includes(choice.toLowerCase()), 'Invalid choice')) as ResultAsync<'yes' | 'no', 'Invalid choice'>
+}
+
+function prompt(message: string, options: { secret: boolean } = { secret: false }): ResultAsync<string, never> {
+  return fromSafePromise(read({
+    prompt: message,
+    silent: options.secret,
+  }))
+}
+
+function displayChannels(channels: Channel[]) {
+  // TODO: this needs some work to show channels in a more user friendly manner.
+  console.log(
+    channels
+    .map((channel, index) => `${(index + 1).toString().padStart(3, ' ')}. ${channel.name}`)
+    .join('\n')
+  )
+}
+
+function retryUntilOk<T>(action: () => ResultAsync<T, string>): ResultAsync<T, string> {
+  return action()
+    .orTee(error => console.log(`${error}.`, 'Please try again'))
+    .orElse(() => retryUntilOk(action))
 }
 
 function makeRequest<T>({ method, url, data }: {

@@ -3,7 +3,7 @@ import {
     RecipientTemplate,
     ScheduledTemplate,
 } from '../../types';
-import { Database, DatabaseError } from '../../database';
+import { Database } from '../../database';
 import _ from 'lodash';
 import { pick, conditionalResultAsync, errorIf, expectDefined, expectFalsy, merge, mergeAsync } from '../..//utilities/functional';
 

@@ -34,6 +34,12 @@ export function createMattermostDatabaseOperations(database: Database) {
             .andThen(expectDefined('MattermostConfigNotFound'))
             .map(mapMatterMostConfigRecord),
 
+        saveConfig: ({ url, channelName, username, password }: MattermostConfig) => fromPromise(
+            database.run('INSERT OR REPLACE INTO mattermost_config (id, url, channel_name, username, password) VALUES (1, ?, ?, ?, ?)', url, channelName, username, password),
+            (error) => new DatabaseError(`Failed to save Mattermost config: ${error}`)
+        )
+            .map(() => {}),
+
         getTimeOfLastGoodMorningMessage: () => fromPromise(
             database.get<{ time: number }>('SELECT * FROM mattermost_last_good_morning_message LIMIT 1'),
             (error) => new DatabaseError(`Failed to get last good morning message time: ${error}`)
