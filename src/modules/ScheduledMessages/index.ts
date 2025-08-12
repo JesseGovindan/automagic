@@ -8,10 +8,21 @@ import { createLogger } from '../../utilities/Logger'
 import { Database, DatabaseError } from '../../database'
 import { useRequestHandler } from '../../utilities/RequestHandler'
 
-const log = createLogger('ScheduledMessages')
-
 const Created = <T>(value: T) => ({ body: value, status: 201 })
 const OK = <T>(value: T) => ({ body: value, status: 200 })
+
+export function bootstrapScheduledMessagesModule(server: Application, database: Database) {
+  registerScheduledMessagesEndpoints(server, database)
+  addScheduledTask({
+    getNextDate: () => Date.now() + 60 * 1000, // every minute
+    task: () => runScheduledMessagesTask(database).match(
+      () => {},
+      error => { throw new Error(`Failed to run scheduled messages task: ${error}`) },
+    ),
+    taskName: 'ScheduledMessages',
+    runImmediately: true,
+  })
+}
 
 function registerScheduledMessagesEndpoints(app: Application, database: Database) {
   const useCases = createSheduledMessageUseCases(database)
@@ -57,17 +68,4 @@ function registerScheduledMessagesEndpoints(app: Application, database: Database
     messages => OK(messages),
     error => ({ status: 500, body: { error: error.message } })
   )))
-}
-
-export function bootstrapScheduledMessagesModule(server: Application, database: Database) {
-  registerScheduledMessagesEndpoints(server, database)
-  addScheduledTask({
-    getNextDate: () => Date.now() + 60 * 1000, // every minute
-    task: () => runScheduledMessagesTask(database).match(
-      () => {},
-      error => { throw new Error(`Failed to run scheduled messages task: ${error}`) },
-    ),
-    taskName: 'ScheduledMessages',
-    runImmediately: true,
-  })
 }

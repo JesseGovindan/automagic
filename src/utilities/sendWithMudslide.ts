@@ -1,4 +1,3 @@
-import { ScheduledMessage } from '../types';
 import { spawn } from 'child_process';
 import { createLogger } from './Logger';
 
@@ -20,11 +19,11 @@ export function sendWithMudslide(message: { phoneNumber: string, message: string
         });
 
         proc.on('close', (code) => {
-            console.log(`Exited with code ${code}`);
+            log(`Exited with code ${code}`);
             resolve(code === 0);
         });
         proc.on('error', (err) => {
-            console.error(`Error: ${err}`);
+            log(`Error: ${err}`);
             reject(err);
         });
     });

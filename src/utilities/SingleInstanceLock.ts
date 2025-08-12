@@ -2,7 +2,7 @@ import net from 'net'
 import process from 'process'
 
 import { createLogger } from './Logger'
-import { notify } from './Notifications'
+import { notify } from './Notification'
 
 const SOCKET_PATH = '\0automagic_server_lock'
 
@@ -11,14 +11,14 @@ const log = createLogger('single_instance_lock')
 export async function createSingleInstanceLock(shutdown: () => Promise<void> = () => Promise.resolve()) {
   await checkConnectionToExistingLockServer(SOCKET_PATH)
   const lockServer = await createLockServer(SOCKET_PATH)
-  await sendAppStartNotification(true)
+  sendAppStatusNotification(true)
 
   const shutdownApp = async () => {
     await new Promise<void>(resolve => lockServer.close(() => resolve()))
 
     log('Shutting down app')
     await shutdown()
-    await sendAppShutdownNotification()
+    sendAppStatusNotification(false)
     process.exit(0)
   }
 
@@ -55,15 +55,10 @@ async function createLockServer(socketPath: string) {
   })
 }
 
-function sendAppStartNotification(started: boolean) {
+function sendAppStatusNotification(started: boolean) {
   return notify(
-    started ? 'Server started' : 'Server failed to start',
     started
-      ? 'The server has started.'
-      : 'The server failed to start because another instance is already running.',
+      ? 'Daemon Started'
+      : 'Daemon Stopped',
   )
-}
-
-async function sendAppShutdownNotification() {
-  return notify('Server stopped', 'The server has stopped.').catch(() => {})
 }

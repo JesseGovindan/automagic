@@ -1,5 +1,7 @@
 import express from 'express';
+import { createLogger } from './utilities/Logger';
 
+const log = createLogger('HttpServer')
 
 export async function startHttpServer() {
     const PORT = process.env.PORT || 3000;
@@ -7,7 +9,7 @@ export async function startHttpServer() {
     app.use(express.json());
     return new Promise<typeof app>((resolve) => {
         app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+            log(`Running on port ${PORT}`);
             resolve(app);
         });
     });

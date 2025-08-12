@@ -1,4 +1,4 @@
-import { bootstrap as bootstrapMattermostAutomation } from './modules/Mattermost';
+import { bootstrapMattermostModule } from './modules/Mattermost/Mattermost';
 import { createSingleInstanceLock } from './utilities/SingleInstanceLock';
 import { startHttpServer } from './server';
 import { bootstrapScheduledMessagesModule } from './modules/ScheduledMessages/index';
@@ -11,6 +11,6 @@ export async function startDaemon() {
   const database = await initialiseDatabase()
   const server = await startHttpServer();
 
-  await bootstrapMattermostAutomation();
+  bootstrapMattermostModule(database);
   bootstrapScheduledMessagesModule(server, database);
 }

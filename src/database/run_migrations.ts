@@ -3,6 +3,9 @@ import _ from 'lodash'
 import { Database } from './'
 
 import { getMigrations, MigrationSet } from './migrations'
+import { createLogger } from '../utilities/Logger'
+
+const log = createLogger('runMigrations')
 
 const CREATE_MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS migrations (
   ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -14,6 +17,7 @@ const ADD_MIGRATION_NAME = `INSERT INTO migrations (name) VALUES (?)`
 const SELECT_ALL_MIGRATIONS = `SELECT name from migrations`
 
 export async function runMigrations(database: Database, migrationSet?: MigrationSet) {
+  log('Running migrations...')
   await database.raw.exec(CREATE_MIGRATIONS_TABLE)
 
   const migrations = migrationSet ?? await getMigrations()
@@ -21,7 +25,9 @@ export async function runMigrations(database: Database, migrationSet?: Migration
   const appliedMigrationNames = await getAppliedMigrationNames(database)
 
   for (const migrationName of getApplicableMigrations(migrationNames, appliedMigrationNames)) {
+    log(`Applying migration: ${migrationName}`)
     await migrations[migrationName]!.apply(database)
+    log(`Applied migration: ${migrationName}`)
     await database.raw.run(ADD_MIGRATION_NAME, migrationName)
   }
 }

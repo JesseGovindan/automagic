@@ -6,6 +6,7 @@ import { ResultAsync } from 'neverthrow'
 import { Recipient, ScheduledMessage } from '~/types'
 import { createRecipentDatabaseOperations } from './recipients'
 import { createScheduledMessageDatabaseOperations } from './scheduled_message'
+import { createMattermostDatabaseOperations, MattermostConfig } from './mattermost'
 
 export class DatabaseError extends Error {
   _tag: 'DatabaseError' = 'DatabaseError'
@@ -32,6 +33,11 @@ export type Database = {
     create: (template: { message: string, scheduledDate: number, recipientId: number }) => ResultAsync<ScheduledMessage, DatabaseError>
     delete: (id: number) => ResultAsync<boolean, DatabaseError>
     markAsFailed: (msg: ScheduledMessage) => ResultAsync<ScheduledMessage, DatabaseError>
+  },
+  mattermost: {
+    getConfig: () => ResultAsync<MattermostConfig, DatabaseError | 'MattermostConfigNotFound'>
+    getTimeOfLastGoodMorningMessage: () => ResultAsync<number | undefined, DatabaseError | 'NoLastGoodMorningMessageTimeFound'>
+    setTimeOfLastGoodMorningMessage: (time: number) => ResultAsync<void, DatabaseError>
   }
 }
 
@@ -45,7 +51,8 @@ export async function getDb(): Promise<Database> {
   return {
     raw: db,
     recipients: recipientDbOps,
-    scheduledMessages: createScheduledMessageDatabaseOperations(db, recipientDbOps)
+    scheduledMessages: createScheduledMessageDatabaseOperations(db, recipientDbOps),
+    mattermost: createMattermostDatabaseOperations(db),
   }
 }
 
