@@ -176,27 +176,19 @@ export function pick<T, K extends keyof T>(key: K) {
   return (t: T): T[K] => t[key]
 }
 
-export function combineSequentially<T extends readonly (() => ResultAsync<any, any>)[]>(
-  results: readonly [...T]
-): ResultAsync<
-  { [K in keyof T]: T[K] extends () => ResultAsync<infer R, any> ? R : never },
-  T[number] extends () => ResultAsync<any, infer E> ? E : never
-> {
-  type RTuple = { [K in keyof T]: T[K] extends () => ResultAsync<infer R, any> ? R : never };
-  type E = T[number] extends () => ResultAsync<any, infer EE> ? EE : never;
+// Can be extended for Result as well
+type RValue<T> = T extends ResultAsync<infer V, unknown> ? V : never;
+type RError<T> = T extends ResultAsync<unknown, infer E> ? E : never;
 
-  // Start with an empty tuple typed as RTuple
-  const initial = okAsync([] as unknown as RTuple) as unknown as ResultAsync<RTuple, E>;
+export function combineSequentially<T extends readonly (() => ResultAsync<unknown, unknown>)[]>(
+  results: readonly [...T],
+): ResultAsync<{ [K in keyof T]: RValue<ReturnType<T[K]>> }, RError<ReturnType<T[number]>>> {
+  const values: unknown[] = [];
+  const initial = okAsync() as ResultAsync<unknown, unknown>;
 
   // Build sequentially; cast at the end to the desired ResultAsync<RTuple, E>.
-  return results.reduce<ResultAsync<any, any>>(
-    (acc, cur) =>
-      acc.andThen((arr) =>
-        cur().map((v) => {
-          // at runtime we push into the array; typing is enforced by the function signature
-          return ([...arr, v] as unknown);
-        })
-      ),
-    initial
-  ) as unknown as ResultAsync<RTuple, E>;
+  return results
+    .reduce((acc, cur) => acc.andThen(cur).andTee((v) => values.push(v)), initial)
+    .map(() => [...values] as { [K in keyof T]: RValue<ReturnType<T[K]>> })
+    .mapErr((err) => err as RError<ReturnType<T[number]>>);
 }
