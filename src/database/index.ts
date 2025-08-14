@@ -44,7 +44,7 @@ export type Database = {
 
 export async function getDb(): Promise<Database> {
   const db = await open({
-    filename: './db/automagic.sqlite',
+    filename: './automagic.sqlite',
     driver: sqlite3.Database
   })
 

@@ -3,13 +3,14 @@ import { createLogger } from "../../utilities/Logger"
 import { Database, DatabaseError } from '../../database'
 import { addScheduledTask } from '../../utilities/TaskScheduler'
 import { merge, errorIf, expectDefined } from '../../utilities/functional'
-import _ from 'lodash'
+import _  from 'lodash'
 import { notify } from '../../utilities/Notification'
 import { MattermostConfig } from '../../database/mattermost'
-import { getMattermostChannels, login, postToChannel } from './MattermostClient'
+import { getChannelPosts, getMattermostChannels, login, PostsResponse, postToChannel } from './MattermostClient'
 import { Application } from 'express'
 import { useRequestHandler } from '../../utilities/RequestHandler'
 import { ok } from 'neverthrow'
+import { generateBirthdayMessage } from './GeminiClient'
 
 const log = createLogger('Mattermost')
 
@@ -25,6 +26,17 @@ function startGoodMorningMessageSchedule(database: Database) {
       const errorMessage = typeof error === 'string' ? error : error.message
       notify('Mattermost', 'Error sending good morning message: ' + errorMessage)
       return ok({ stopRunning: true })
+    }),
+    taskName: 'GoodMorningMessage',
+    runImmediately: true,
+  })
+
+  addScheduledTask({
+    getNextDate: getDateTomorrow,
+    task: () => sendBirthdayMessage(database).orElse((error) => {
+      const errorMessage = typeof error === 'string' ? error : error.message
+      notify('Mattermost', 'Error sending birthday message: ' + errorMessage)
+      return ok()
     }),
     taskName: 'GoodMorningMessage',
     runImmediately: true,
@@ -102,4 +114,35 @@ function getChannelToMessage(config: MattermostConfig, client: axios.AxiosInstan
     .andThen(expectDefined(`Channel ${config.channelName} not found for user`))
     .andTee(channel => log(`Selected channel: ${JSON.stringify(channel)}`))
     .map(channel => channel.id)
+}
+
+function sendBirthdayMessage(database: Database) {
+  return database.mattermost.getConfig()
+    .andThen(config => login(config)
+      .andThen(([client, userId, username]) => getChannelToMessage(config, client, userId)
+        .andThen(channelId => getChannelPosts(client, channelId, getTodayMorning())
+           .map(extractBirthdayMessages)
+           .andThrough(messages => errorIf(messages.length === 0, 'No birthdays today'))
+           .andTee(m => log('Current birthday messages:\n', m.join('\n')))
+           .andThen(messages => generateBirthdayMessage(messages, username))
+           .andThen(message => postToChannel(client, channelId, message))
+    )))
+    .map(() => log('Sent birthday messages'))
+}
+
+function extractBirthdayMessages(response: axios.AxiosResponse<PostsResponse>) {
+  const endDate = getTodayMorning() + (24 * 60 * 60 * 1000)
+  return _.toArray(response.data.posts)
+  .filter(p => p.create_at < endDate)
+  .map(p => p.message)
+  .filter(p => /happy birthday/i.test(p))
+  .map(p => p.replace(/\n/g, ' '))
+}
+
+function getTodayMorning() {
+  const now = new Date()
+  now.setHours(0)
+  now.setMinutes(0)
+  now.setMilliseconds(0)
+  return now.valueOf()
 }

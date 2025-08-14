@@ -8,7 +8,7 @@ import { pick } from '../../utilities/functional'
 const log = createLogger('MattermostClient')
 
 export function login(config: Pick<MattermostConfig , 'url' | 'username' | 'password'>) {
-  return makeRequest<{ id: string, token: string }>({
+  return makeRequest<{ id: string, token: string, username: string }>({
     method: 'post',
     baseURL: config.url,
     url: '/api/v4/users/login',
@@ -17,13 +17,16 @@ export function login(config: Pick<MattermostConfig , 'url' | 'username' | 'pass
       password: config.password,
     },
   })
-    .andTee(() => log('Logged in'))
+    .andTee((r) => log('Logged in', JSON.stringify(r.data, null, 2)))
     .map(response => [axios.create({
       baseURL: config.url,
       headers: {
         'Authorization': `Bearer ${response.headers.token}`,
       },
-    }), response.data.id] as const)
+    }),
+    response.data.id,
+    response.data.username,
+    ] as const)
 }
 
 export type Channel = {
@@ -50,6 +53,27 @@ export function postToChannel(client: axios.AxiosInstance, channelId: string, me
       channel_id: channelId,
       message,
     },
+    client,
+  })
+}
+
+export type Post = {
+  message: string
+  create_at: number
+}
+
+export type PostsResponse = {
+  posts: Record<string, Post>
+}
+
+export function getChannelPosts(client: axios.AxiosInstance, channelId: string, since: number) {
+  const params = new URLSearchParams()
+  params.set('per_page', '3')
+  params.set('page', '0')
+  params.set('since', since.toString())
+  return makeRequest<PostsResponse>({
+    method: 'get',
+    url: `/api/v4/channels/${channelId}/posts?${params.toString()}`,
     client,
   })
 }
