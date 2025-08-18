@@ -10,7 +10,6 @@ const log = createLogger('Scheduler');
 
 export function runScheduledMessagesTask(database: Database) {
   return database.scheduledMessages.findAll()
-    .andTee(messages => log(`Running scheduled messages task for ${messages.length} messages`))
     .andThen(messages => combineSequentially(messages.map(msg => () => processScheduledMessage(msg, database))))
     .map(() => log('All scheduled messages sent successfully'))
 }
@@ -35,13 +34,11 @@ function sendScheduledMessage(msg: ScheduledMessage, db: Database) {
     (error) => new Error(`Failed to send message: ${error}`)
   )
     .andThen(() => {
-      log(`Sending message ${msg.id} to ${msg.recipient.phoneNumber}`);
       notify(`Sending scheduled message: To: ${msg.recipient.name} - ${msg.message}`);
       return db.scheduledMessages.delete(msg.id);
     })
     .orElse((error) => {
-      log(`Failed to send message ${msg.id}: ${error}`);
-      notify(`Failed to send scheduled message: ${msg.message}`);
+      notify(`Failed to send scheduled message: "${msg.message}". Error: ${error.message}`);
       return db.scheduledMessages.markAsFailed(msg)
     });
 }

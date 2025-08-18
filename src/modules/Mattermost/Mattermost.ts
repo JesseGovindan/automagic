@@ -2,7 +2,7 @@ import axios from 'axios'
 import { createLogger } from "../../utilities/Logger"
 import { Database, DatabaseError } from '../../database'
 import { addScheduledTask } from '../../utilities/TaskScheduler'
-import { merge, errorIf, expectDefined } from '../../utilities/functional'
+import { merge, errorIf, expectDefined, tuple } from '../../utilities/functional'
 import _  from 'lodash'
 import { notify } from '../../utilities/Notification'
 import { MattermostConfig } from '../../database/mattermost'
@@ -19,28 +19,32 @@ export function bootstrapMattermostModule(server: Application, database: Databas
   startGoodMorningMessageSchedule(database)
 }
 
+const logAndStopRunning = (context: string) => (error: DatabaseError | string) => {
+  const errorMessage = typeof error === 'string' ? error : error.message
+  notify('Mattermost', `${context}: ` + errorMessage)
+  return ok({ stopRunning: true })
+}
+
+const TWO_HOURS = 2 * 60 * 60 * 1000
+
 function startGoodMorningMessageSchedule(database: Database) {
   addScheduledTask({
     getNextDate: getDateTomorrow,
-    task: () => sendGoodMorningMessage(database).orElse((error) => {
-      const errorMessage = typeof error === 'string' ? error : error.message
-      notify('Mattermost', 'Error sending good morning message: ' + errorMessage)
-      return ok({ stopRunning: true })
-    }),
+    task: () => sendGoodMorningMessage(database)
+      .orElse(logAndStopRunning('Error sending good morning message'))
+      .andTee(() => {
+        addScheduledTask({
+          getNextDate: () => Date.now() + TWO_HOURS,
+          task: () => sendBirthdayMessage(database)
+            .orElse(logAndStopRunning('Error sending birthday message')),
+          taskName: 'Send birthday wishes',
+        })
+      })
+      ,
     taskName: 'GoodMorningMessage',
     runImmediately: true,
   })
 
-  addScheduledTask({
-    getNextDate: getDateTomorrow,
-    task: () => sendBirthdayMessage(database).orElse((error) => {
-      const errorMessage = typeof error === 'string' ? error : error.message
-      notify('Mattermost', 'Error sending birthday message: ' + errorMessage)
-      return ok()
-    }),
-    taskName: 'GoodMorningMessage',
-    runImmediately: true,
-  })
 }
 
 const Created = <T>(value: T) => ({ body: value, status: 201 })
@@ -109,10 +113,8 @@ function ensureEnoughTimeHasPassed(database: Database) {
 
 function getChannelToMessage(config: MattermostConfig, client: axios.AxiosInstance, userId: string) {
   return getMattermostChannels(client, userId)
-    .andTee(channels => log(`Found ${channels.length} channels for user`))
     .map(data => data.find(channel => channel.name === config.channelName))
     .andThen(expectDefined(`Channel ${config.channelName} not found for user`))
-    .andTee(channel => log(`Selected channel: ${JSON.stringify(channel)}`))
     .map(channel => channel.id)
 }
 
@@ -122,12 +124,30 @@ function sendBirthdayMessage(database: Database) {
       .andThen(([client, userId, username]) => getChannelToMessage(config, client, userId)
         .andThen(channelId => getChannelPosts(client, channelId, getTodayMorning())
            .map(extractBirthdayMessages)
-           .andThrough(messages => errorIf(messages.length === 0, 'No birthdays today'))
-           .andTee(m => log('Current birthday messages:\n', m.join('\n')))
-           .andThen(messages => generateBirthdayMessage(messages, username))
+           .andThen(getUsersToWish(database))
+           .andThen(([messages, users]) => generateBirthdayMessage(messages, [...users, `@${username}`]))
            .andThen(message => postToChannel(client, channelId, message))
     )))
     .map(() => log('Sent birthday messages'))
+    .map(() => ({ stopRunning: true }))
+}
+
+function getUsersToWish(database: Database) {
+  return (birthdayWishes: string[]) => {
+    const celebrants = Array.from(new Set(birthdayWishes.flatMap(wish => extractMentionedUsernames(wish))))
+
+    return errorIf(birthdayWishes.length === 0, 'No birthdays today')
+      .asyncAndThen(() => database.mattermost.getRecentBirthdayWishes())
+      .map(pastCelebrants => celebrants.filter(celebrant => !pastCelebrants.includes(celebrant)))
+      .andThrough(notWished => errorIf(notWished.length === 0, 'Wishes already granted'))
+      .andThrough(database.mattermost.addBirthdayWishes)
+      .map(celebrants => tuple(birthdayWishes, celebrants))
+  }
+}
+
+function extractMentionedUsernames(message: string): string[] {
+  return Array.from(message.matchAll(/@([a-zA-Z0-9_]+)/g), m => m[1])
+    .filter(v => !!v) as string[]
 }
 
 function extractBirthdayMessages(response: axios.AxiosResponse<PostsResponse>) {

@@ -39,6 +39,8 @@ export type Database = {
     saveConfig: (config: MattermostConfig) => ResultAsync<void, DatabaseError>
     getTimeOfLastGoodMorningMessage: () => ResultAsync<number | undefined, DatabaseError | 'NoLastGoodMorningMessageTimeFound'>
     setTimeOfLastGoodMorningMessage: (time: number) => ResultAsync<void, DatabaseError>
+    getRecentBirthdayWishes: () => ResultAsync<string[], never>
+    addBirthdayWishes: (celebrants: string[]) => ResultAsync<void, DatabaseError>
   }
 }
 

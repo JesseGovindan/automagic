@@ -5,8 +5,6 @@ import { createLogger } from "../../utilities/Logger"
 import _  from 'lodash'
 import { pick } from '../../utilities/functional'
 
-const log = createLogger('MattermostClient')
-
 export function login(config: Pick<MattermostConfig , 'url' | 'username' | 'password'>) {
   return makeRequest<{ id: string, token: string, username: string }>({
     method: 'post',
@@ -17,7 +15,6 @@ export function login(config: Pick<MattermostConfig , 'url' | 'username' | 'pass
       password: config.password,
     },
   })
-    .andTee((r) => log('Logged in', JSON.stringify(r.data, null, 2)))
     .map(response => [axios.create({
       baseURL: config.url,
       headers: {

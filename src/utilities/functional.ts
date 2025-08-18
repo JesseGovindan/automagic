@@ -24,7 +24,11 @@ export function onlyIf<R1, E1>(flag: boolean, onTrue: () => Result<R1, E1>): Res
 export function errorIf<Error extends string = string>(flag: boolean, error: Error): Result<undefined, Error>
 export function errorIf<Error>(flag: boolean, error: Error): Result<undefined, Error>
 export function errorIf<Error>(flag: boolean, error: Error): Result<undefined, Error> {
-  return flag ? err(error) : ok(undefined)
+  return conditionalResult(
+    flag,
+    () => err(error),
+    () => ok(undefined)
+  )
 }
 
 export function onlyIfAsync<R1, E1>(flag: boolean, onTrue: () => ResultAsync<R1, E1>): ResultAsync<R1 | undefined, E1> {
@@ -170,6 +174,18 @@ export function mergeAsync<T extends object, R, E, U extends Record<string, Resu
       }, (base ?? {}) as T & { [K in keyof U]: ExtractOkAsync<U[K]> })
     })
     .mapErr((err) => err as ErrorUnion<U>)
+}
+
+export function ifDefined<T, R>(map: (value: T) => R) {
+  return (value: T | undefined) => {
+    return value && map(value)
+  }
+}
+
+export function ifDefinedThen<T, R, E>(map: (value: T) => Result<R, E>) {
+  return (value: T | undefined) => {
+    return conditionalResult(!!value, () => map(value!), () => ok(undefined))
+  }
 }
 
 export function pick<T, K extends keyof T>(key: K) {

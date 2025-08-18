@@ -34,21 +34,3 @@ export function addScheduledTask(taskDetails: {
     }
   }).catch(error => log(`Error in task ${taskName}: ${error}`))
 }
-
-async function runTask(task: () => Promise<void>, taskName: string) {
-  try {
-    await task()
-    return 'Succeeded'
-  } catch (error) {
-    log(`Task ${taskName} failed. Error: ${inspect(error)}`)
-    return 'Failed'
-  }
-}
-
-function notifyOnError(taskName: string | undefined, taskState: 'Succeeded' | 'Failed') {
-  if (!taskName || taskState === 'Succeeded') {
-    return
-  }
-
-  log(`Task ${taskName} failed. Notifying...`)
-}
