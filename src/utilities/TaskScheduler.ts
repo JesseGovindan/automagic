@@ -19,18 +19,20 @@ export function addScheduledTask(taskDetails: {
 }) {
   const { getNextDate, task, taskName } = taskDetails
 
-  // Purposefully not awaiting the promise to allow the task to run in the background
-  new Promise<void>(async () => {
+  const runTask = async () => {
     if (!taskDetails.runImmediately) {
       await sleepUntil(getNextDate())
     }
 
-    const continueSchedule = await task()
+    const stopRunning = await task()
       .orTee(error => log(`Task ${taskName} failed. Error: ${inspect(error)}`))
-      .match(result => _.get(result, 'stopRunning', true), () => false)
+      .match(result => _.get(result, 'stopRunning', false), () => true)
 
-    if (continueSchedule) {
+    if (!stopRunning) {
       setTimeout(() => addScheduledTask({ ...taskDetails, runImmediately: false }), 1)
     }
-  }).catch(error => log(`Error in task ${taskName}: ${error}`))
+  }
+
+  // Purposefully not awaiting the promise to allow the task to run in the background
+  void runTask().catch(error => log(`Error in task ${taskName}: ${error}`))
 }

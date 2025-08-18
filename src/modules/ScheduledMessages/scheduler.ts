@@ -11,7 +11,7 @@ const log = createLogger('Scheduler');
 export function runScheduledMessagesTask(database: Database) {
   return database.scheduledMessages.findAll()
     .andThen(messages => combineSequentially(messages.map(msg => () => processScheduledMessage(msg, database))))
-    .map(() => log('All scheduled messages sent successfully'))
+    .map(() => {})
 }
 
 function processScheduledMessage(msg: ScheduledMessage, db: Database) {
