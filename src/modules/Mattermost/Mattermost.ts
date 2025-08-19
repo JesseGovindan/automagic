@@ -11,6 +11,7 @@ import { Application } from 'express'
 import { useRequestHandler } from '../../utilities/RequestHandler'
 import { ok } from 'neverthrow'
 import { generateBirthdayMessage } from './GeminiClient'
+import { timeSpan } from '../../utilities/TimeSpan'
 
 const log = createLogger('Mattermost')
 
@@ -89,16 +90,15 @@ function getDateTomorrow() {
   return date.valueOf()
 }
 
-const EIGHT_HOURS = 8 * 60 * 60 * 6000
+const EIGHT_HOURS = timeSpan(8, 'hours')
 
 function sendGoodMorningMessage(database: Database) {
   return ensureEnoughTimeHasPassed(database)
     .andThen(database.mattermost.getConfig)
-    .andThen(config =>
-      login(config)
-        .andThen(([userClient, userId]) => getChannelToMessage(config, userClient, userId)
-            .andThen(channelId => postToChannel(userClient, channelId, 'Good morning! Have a great day!')
-            )))
+    .andThen(config => login(config)
+      .andThen(([userClient, userId]) => getChannelToMessage(config, userClient, userId)
+        .andThen(channelId => postToChannel(userClient, channelId, 'Good morning! Have a great day!')
+    )))
     .andThen(() => database.mattermost.setTimeOfLastGoodMorningMessage(Date.now()))
     .map(() => notify('Mattermost', 'Good morning message sent successfully!'))
 }

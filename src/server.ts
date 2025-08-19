@@ -4,7 +4,7 @@ import { createLogger } from './utilities/Logger';
 const log = createLogger('HttpServer')
 
 export async function startHttpServer() {
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 12120;
     const app = express();
     app.use(express.json());
     return new Promise<typeof app>((resolve) => {
