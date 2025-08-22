@@ -2,14 +2,14 @@ import axios from 'axios'
 import { createLogger } from "../../utilities/Logger"
 import { Database, DatabaseError } from '../../database'
 import { addScheduledTask } from '../../utilities/TaskScheduler'
-import { merge, errorIf, expectDefined, tuple } from '../../utilities/functional'
+import { merge, errorIf, expectDefined, tuple, conditionalResultAsync } from '../../utilities/functional'
 import _  from 'lodash'
-import { notify } from '../../utilities/Notification'
+import { desktopInput, desktopPrompt, notify } from '../../utilities/Notification'
 import { MattermostConfig } from '../../database/mattermost'
 import { getChannelPosts, getMattermostChannels, login, PostsResponse, postToChannel } from './MattermostClient'
 import { Application } from 'express'
 import { useRequestHandler } from '../../utilities/RequestHandler'
-import { ok } from 'neverthrow'
+import { ok, okAsync } from 'neverthrow'
 import { generateBirthdayMessage } from './GeminiClient'
 import { timeSpan } from '../../utilities/TimeSpan'
 
@@ -117,15 +117,38 @@ function getChannelToMessage(config: MattermostConfig, client: axios.AxiosInstan
 function sendBirthdayMessage(database: Database) {
   return database.mattermost.getConfig()
     .andThen(config => login(config)
-      .andThen(([client, userId, username]) => getChannelToMessage(config, client, userId)
+      .andThen(([client, userId]) => getChannelToMessage(config, client, userId)
         .andThen(channelId => getChannelPosts(client, channelId, getTodayMorning())
            .map(extractBirthdayMessages)
            .andThen(getUsersToWish(database))
-           .andThen(([messages, users]) => generateBirthdayMessage(messages, [...users, `@${username}`]))
+           .andThen(([messages, alreadyWishedUsers]) => generateBirthdayMessage(
+             messages, [...alreadyWishedUsers.map(m => `@${m}`)],
+           )
+                    .andThen(promptUserToSendBirthdayMessage(messages, alreadyWishedUsers)))
            .andThen(message => postToChannel(client, channelId, message))
     )))
     .map(() => log('Sent birthday messages'))
     .map(() => ({ stopRunning: true }))
+}
+
+function promptUserToSendBirthdayMessage(currentMessages: string[], users: string[]) {
+  const userList = users.join(', ')
+  return (generatedMessage: string) => {
+    return desktopPrompt(`It's ${userList} birthday today`, `Messages seen:
+${currentMessages.map(m => `- ${m}`).join('\n')}
+
+Generated message: "${generatedMessage}"
+
+Send message?`)
+      .mapErr(() => 'Unable to get response from desktop prompt')
+      
+      .andThen(response => conditionalResultAsync(
+        response,
+        () => okAsync(generatedMessage),
+        () => desktopInput('Custom Birtday message', `Suggest a birthday message to ${userList}.`)
+          .mapErr(() => 'User rejected AI generated message and did not want to send a custom message')
+      ))
+  }
 }
 
 function getUsersToWish(database: Database) {
@@ -135,7 +158,7 @@ function getUsersToWish(database: Database) {
     return errorIf(birthdayWishes.length === 0, 'No birthdays today')
       .asyncAndThen(() => database.mattermost.getRecentBirthdayWishes())
       .map(pastCelebrants => celebrants.filter(celebrant => !pastCelebrants.includes(celebrant)))
-      .andThrough(notWished => errorIf(notWished.length === 0, 'Wishes already granted'))
+      .andThrough(toWish => errorIf(!toWish.length, 'Wishes already granted'))
       .andThrough(database.mattermost.addBirthdayWishes)
       .map(celebrants => tuple(birthdayWishes, celebrants))
   }

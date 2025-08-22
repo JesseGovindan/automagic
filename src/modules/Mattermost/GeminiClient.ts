@@ -2,8 +2,11 @@ import axios from 'axios'
 import _ from 'lodash'
 import { fromPromise, ok } from "neverthrow"
 import { expectDefined } from "../../utilities/functional"
+import { createLogger } from '../../utilities/Logger'
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+const log = createLogger('Gemini')
 
 export function generateBirthdayMessage(messages: string[], omittedNames: string[]) {
   return getEnvironmentVariable('GEMINI_API_KEY')
@@ -27,19 +30,20 @@ export function generateBirthdayMessage(messages: string[], omittedNames: string
 }
 
 function generateBirthdayMessagePrompt(messages: string[], omittedNames: string[]) {
-  return `You are a professional assistant. Produce a single short, unique, friendly and professional "Happy Birthday" message suitable for a colleague.
+  const prompt = `You are a professional assistant. Produce a single short, unique, friendly and professional "Happy Birthday" message suitable for a colleague.
 Birthday messages received so far:
 ${messages.map(m => `- ${m}`).join('\n')}
 
 Constraints:
-- Tone: cool, friendly, and professional.
+- Tone: cool, and friendly.
 - Avoid slang, and overly familiar language.
-- Use emojis sparingly.
 - Output only the message, with no surrounding explanation or punctuation besides a single final period.
-- If any of the following users [${omittedNames.join(', ')}] are wished, do not wish those users.
+- Only wish the following users [${omittedNames.join(', ')}], do not wish any other users.
 - If users are being wished using their tags, ensure that their tag is used in the message.
 - If there is no one that can be wished. Reply with the text "Have a great day everyone."
 `
+  log('Birthday message prompt:', prompt)
+  return prompt
 }
 
 function getEnvironmentVariable<T extends string>(name: T) {
