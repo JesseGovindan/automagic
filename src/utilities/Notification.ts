@@ -1,3 +1,4 @@
+import { fromPromise, ResultAsync } from 'neverthrow';
 import { createLogger } from './Logger';
 import { spawn } from 'child_process';
 
@@ -10,6 +11,48 @@ function notifySend(title: string, message?: string) {
         title,
         message ?? '',
     ], { stdio: 'ignore', detached: true });
+}
+
+export function desktopPrompt(title: string, message: string): ResultAsync<boolean, Error> {
+  const createZenityPromise = () => new Promise<boolean>(resolve => {
+    const process = spawn('zenity', [
+        '--question',
+        `--text=${message}`,
+        `--title=Automagic ${title}`,
+        // message ?? '',
+    ], { stdio: 'ignore', detached: true });
+
+        process.on('error', console.log)
+    process.on('exit', (code) => {
+      console.log(code)
+      resolve(code === 0)
+    })
+  })
+  return fromPromise(createZenityPromise(), () => new Error())
+}
+
+export function desktopInput(title: string, message: string): ResultAsync<string, Error> {
+  const createZenityPromise = () => new Promise<string>((resolve, reject) => {
+    const process = spawn('zenity', [
+        '--entry',
+        `--text=${message}`,
+        `--title=Automagic: ${title}`,
+        // message ?? '',
+    ], { detached: true });
+
+        let userInput = ''
+        process.stdout.on('data', data => { userInput = Buffer.from(data).toString() })
+
+        process.on('error', console.log)
+    process.on('exit', (code) => {
+      console.log(code)
+      if (code === 0) {
+        resolve(userInput)
+      }
+      reject(code)
+    })
+  })
+  return fromPromise(createZenityPromise(), () => new Error())
 }
 
 export function notify(title: string, message?: string) {
