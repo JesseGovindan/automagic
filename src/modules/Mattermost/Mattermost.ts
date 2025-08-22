@@ -26,8 +26,6 @@ const logAndStopRunning = (context: string) => (error: DatabaseError | string) =
   return ok({ stopRunning: true })
 }
 
-const TWO_HOURS = 2 * 60 * 60 * 1000
-
 function startGoodMorningMessageSchedule(database: Database) {
   addScheduledTask({
     getNextDate: getDateTomorrow,
@@ -35,7 +33,7 @@ function startGoodMorningMessageSchedule(database: Database) {
       .orElse(logAndStopRunning('Error sending good morning message'))
       .andTee(() => {
         addScheduledTask({
-          getNextDate: () => Date.now() + TWO_HOURS,
+          getNextDate: () => Date.now() + timeSpan(2, 'hours'),
           task: () => sendBirthdayMessage(database)
             .orElse(logAndStopRunning('Error sending birthday message')),
           taskName: 'Send birthday wishes',
@@ -90,8 +88,6 @@ function getDateTomorrow() {
   return date.valueOf()
 }
 
-const EIGHT_HOURS = timeSpan(8, 'hours')
-
 function sendGoodMorningMessage(database: Database) {
   return ensureEnoughTimeHasPassed(database)
     .andThen(database.mattermost.getConfig)
@@ -106,7 +102,7 @@ function sendGoodMorningMessage(database: Database) {
 function ensureEnoughTimeHasPassed(database: Database) {
   return database.mattermost.getTimeOfLastGoodMorningMessage()
     .andThen(lastTime => errorIf(
-      !!lastTime && (Date.now() - lastTime) < EIGHT_HOURS,
+      !!lastTime && (Date.now() - lastTime) < timeSpan(20, 'hours'),
       'Good morning message already sent today, skipping.',
     ))
 }
