@@ -37,7 +37,7 @@ export function createMattermostDatabaseOperations(database: Database) {
   )
 
   const saveMessageHistory = (type: 'BirthdayWishes' | 'GoodMorning') => (data: string) => fromPromise(
-    database.run('INSERT OR REPLACE INTO mattermost_message_history (type, data) VALUES ("GoodMorning", ?)', data),
+    database.run('INSERT OR REPLACE INTO mattermost_message_history (type, data) VALUES (?, ?)', type, data),
     (error) => new DatabaseError(`Failed to save ${type}: ${error}`)
   )
 
