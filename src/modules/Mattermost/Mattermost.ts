@@ -90,6 +90,7 @@ function getDateTomorrow() {
 
 function sendGoodMorningMessage(database: Database) {
   return ensureEnoughTimeHasPassed(database)
+    .andThrough(checkIfUserWantsToSendGoodMorningMessage)
     .andThen(database.mattermost.getConfig)
     .andThen(config => login(config)
       .andThen(([userClient, userId]) => getChannelToMessage(config, userClient, userId)
@@ -105,6 +106,12 @@ function ensureEnoughTimeHasPassed(database: Database) {
       !!lastTime && (Date.now() - lastTime) < timeSpan(20, 'hours'),
       'Good morning message already sent today, skipping.',
     ))
+}
+
+function checkIfUserWantsToSendGoodMorningMessage() {
+  return desktopPrompt('Mattermost Goodmorning Message', 'Do you want to send a good morning message?')
+    .mapErr(() => 'Unable to get user permission to send good morning message')
+    .andThen(response => errorIf(!response, 'User chose not to send a good morning message'))
 }
 
 function getChannelToMessage(config: MattermostConfig, client: axios.AxiosInstance, userId: string) {
