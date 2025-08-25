@@ -22,9 +22,8 @@ export function desktopPrompt(title: string, message: string): ResultAsync<boole
         // message ?? '',
     ], { stdio: 'ignore', detached: true });
 
-        process.on('error', console.log)
+    process.on('error', log)
     process.on('exit', (code) => {
-      console.log(code)
       resolve(code === 0)
     })
   })
@@ -34,18 +33,18 @@ export function desktopPrompt(title: string, message: string): ResultAsync<boole
 export function desktopInput(title: string, message: string): ResultAsync<string, Error> {
   const createZenityPromise = () => new Promise<string>((resolve, reject) => {
     const process = spawn('zenity', [
-        '--entry',
-        `--text=${message}`,
+      '--entry',
+      `--text=${message}`,
         `--title=Automagic: ${title}`,
         // message ?? '',
     ], { detached: true });
 
-        let userInput = ''
-        process.stdout.on('data', data => { userInput = Buffer.from(data).toString() })
+    let userInput = ''
+    process.stdout.on('data', data => { userInput = Buffer.from(data).toString() })
 
-        process.on('error', console.log)
+    process.on('error', log)
     process.on('exit', (code) => {
-      console.log(code)
+      log(`desktop input exitted with code ${code}`)
       if (code === 0) {
         resolve(userInput)
       }
