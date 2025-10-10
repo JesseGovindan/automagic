@@ -3,7 +3,7 @@ import { createLogger } from "../../utilities/Logger"
 import { Database, DatabaseError } from '../../database'
 import { addScheduledTask } from '../../utilities/TaskScheduler'
 import { merge, errorIf, expectDefined, tuple, conditionalResultAsync } from '../../utilities/functional'
-import _  from 'lodash'
+import _ from 'lodash'
 import { desktopInput, desktopPrompt, notify } from '../../utilities/Notification'
 import { MattermostConfig } from '../../database/mattermost'
 import { getChannelPosts, getMattermostChannels, login, PostsResponse, postToChannel } from './MattermostClient'
@@ -94,7 +94,7 @@ function sendGoodMorningMessage(database: Database) {
     .andThen(database.mattermost.getConfig)
     .andThen(config => login(config)
       .andThen(([userClient, userId]) => getChannelToMessage(config, userClient, userId)
-        .andThen(channelId => postToChannel(userClient, channelId, 'Good morning! Have a great day!')
+        .andThen(channelId => postToChannel(userClient, channelId, createGoodMorningMessage(new Date()))
     )))
     .andThen(() => database.mattermost.setTimeOfLastGoodMorningMessage(Date.now()))
     .map(() => notify('Mattermost', 'Good morning message sent successfully!'))
@@ -119,6 +119,26 @@ function getChannelToMessage(config: MattermostConfig, client: axios.AxiosInstan
     .map(data => data.find(channel => channel.name === config.channelName))
     .andThen(expectDefined(`Channel ${config.channelName} not found for user`))
     .map(channel => channel.id)
+}
+
+const EMOJIS = [':wave:', ':chillisoft:', ':coffee:', ':slightly_smiling_face:'] as const
+type EmojieIndexes = Exclude<keyof typeof EMOJIS, keyof any[]> extends infer K ? K extends `${infer N extends number}` ? N : never : never
+const ran: () => EmojieIndexes = () => _.random(0, EMOJIS.length - 1) as EmojieIndexes
+const randomEmoji = () => EMOJIS[ran()]
+
+function createGoodMorningMessage(currentDate: Date) {
+  return `${getDaySpecificMessage(currentDate.getDay())} ${randomEmoji()}`
+}
+
+function getDaySpecificMessage(day: number) {
+  switch (day) {
+    case 1: 'Good morning all. Have a great week ahead!'
+    case 2: 'Good morning everyone'
+    case 3: 'Good morning'
+    case 4: 'Good morning guys. Have a great day'
+    case 5: 'Good morning. Happy Friday!'
+    default: 'Good morning everyone'
+  }
 }
 
 function sendBirthdayMessage(database: Database) {
