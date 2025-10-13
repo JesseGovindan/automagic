@@ -132,12 +132,12 @@ function createGoodMorningMessage(currentDate: Date) {
 
 function getDaySpecificMessage(day: number) {
   switch (day) {
-    case 1: 'Good morning all. Have a great week ahead!'
-    case 2: 'Good morning everyone'
-    case 3: 'Good morning'
-    case 4: 'Good morning guys. Have a great day'
-    case 5: 'Good morning. Happy Friday!'
-    default: 'Good morning everyone'
+    case 1: return 'Good morning all. Have a great week ahead!'
+    case 2: return 'Good morning everyone'
+    case 3: return 'Good morning'
+    case 4: return 'Good morning guys. Have a great day'
+    case 5: return 'Good morning. Happy Friday!'
+    default: return 'Good morning everyone'
   }
 }
 
