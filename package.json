@@ -7,7 +7,9 @@
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "dev": "npm run build && node ./dist/main.js",
-    "start": "npm run build && node ./dist/main.js"
+    "start": "npm run build && node ./dist/main.js",
+    "restart-service": "systemctl restart --user automagic.service",
+    "open-logs": "journalctl --user-unit automagic.service -f"
   },
   "author": "",
   "license": "ISC",
