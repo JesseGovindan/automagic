@@ -16,8 +16,10 @@ import { timeSpan } from '../../utilities/TimeSpan'
 const log = createLogger('Mattermost')
 
 export function bootstrapMattermostModule(server: Application, database: Database) {
-  registerScheduledMessagesEndpoints(server, database)
-  startGoodMorningMessageSchedule(database)
+  const useCases = createMattermostUseCases(database)
+
+  registerScheduledMessagesEndpoints(server, useCases)
+  startGoodMorningMessageSchedule(useCases)
 }
 
 const logAndStopRunning = (context: string) => (error: DatabaseError | string) => {
@@ -26,20 +28,10 @@ const logAndStopRunning = (context: string) => (error: DatabaseError | string) =
   return ok({ stopRunning: true })
 }
 
-function startGoodMorningMessageSchedule(database: Database) {
+function startGoodMorningMessageSchedule(useCases: UseCases) {
   addScheduledTask({
     getNextDate: getDateTomorrow,
-    task: () => sendGoodMorningMessage(database)
-      .orElse(logAndStopRunning('Error sending good morning message'))
-      .andTee(() => {
-        addScheduledTask({
-          getNextDate: () => Date.now() + timeSpan(2, 'hours'),
-          task: () => sendBirthdayMessage(database)
-            .orElse(logAndStopRunning('Error sending birthday message')),
-          taskName: 'Send birthday wishes',
-        })
-      })
-      ,
+    task: () => useCases.sendGoodMorningMessage(),
     taskName: 'GoodMorningMessage',
     runImmediately: true,
   })
@@ -47,6 +39,8 @@ function startGoodMorningMessageSchedule(database: Database) {
 }
 
 const Created = <T>(value: T) => ({ body: value, status: 201 })
+
+type UseCases = ReturnType<typeof createMattermostUseCases>
 
 function createMattermostUseCases(database: Database) {
   return {
@@ -59,12 +53,21 @@ function createMattermostUseCases(database: Database) {
       })
       .asyncAndThen(database.mattermost.saveConfig)
     },
+
+    sendGoodMorningMessage: () => sendGoodMorningMessage(database)
+      .orElse(logAndStopRunning('Error sending good morning message'))
+      .andTee(() => {
+        addScheduledTask({
+          getNextDate: () => Date.now() + timeSpan(2, 'hours'),
+            task: () => sendBirthdayMessage(database)
+          .orElse(logAndStopRunning('Error sending birthday message')),
+          taskName: 'Send birthday wishes',
+        })
+      }),
   }
 }
 
-function registerScheduledMessagesEndpoints(app: Application, database: Database) {
-  const useCases = createMattermostUseCases(database)
-
+function registerScheduledMessagesEndpoints(app: Application, useCases: UseCases) {
   app.post('/mattermost-config', useRequestHandler((req) => useCases.saveConfig(req.body).match(
     Created,
     error => {
@@ -75,11 +78,6 @@ function registerScheduledMessagesEndpoints(app: Application, database: Database
       return { status: 400, body: { error: error } }
     }
   )))
-
-  app.post('/mattermost-send-morning-message', useRequestHandler(async () => {
-    startGoodMorningMessageSchedule(database)
-    return Created(undefined)
-  }))
 }
 
 function getDateTomorrow() {
